@@ -155,21 +155,18 @@ def submission_frequency(*, sla_hours: float, batch_eta_hours: float) -> int:
     """
     if sla_hours <= 0 or batch_eta_hours <= 0:
         raise ValueError("sla_hours and batch_eta_hours must be positive.")
-    # TODO: Implement the SLA-to-frequency math.
-    #
-    # 1. If sla_hours < batch_eta_hours → raise SLATooTightError. The batch's own
-    #    completion time blows the SLA before the result is even available; the
-    #    caller should fall back to the real-time Messages API.
-    # 2. Compute head_room = sla_hours - batch_eta_hours.
-    #    ⚠ Watch the denominator. When sla_hours ≈ batch_eta_hours, head_room is
-    #    near zero and dividing 24 by `sla_hours` (the most natural-looking
-    #    denominator) silently produces a too-loose frequency. The right formula
-    #    keeps head_room and batch_eta_hours separate:
-    #       24 / (head_room + batch_eta_hours)
-    #    At the boundary (head_room == 0) this collapses to 24 / batch_eta_hours,
-    #    which is the correct fallback — every batch is a full SLA period long.
-    # 3. Return max(1, math.ceil(24.0 / (head_room + batch_eta_hours))).
-    raise NotImplementedError("LO-B — implement submission_frequency.")
+    if sla_hours < batch_eta_hours:
+        raise SLATooTightError(
+            f"SLA {sla_hours}h is shorter than batch_eta {batch_eta_hours}h. "
+            "Batch processing cannot meet this SLA; use the real-time Messages API."
+        )
+    # The latest a request can be submitted and still meet SLA is (sla_hours - batch_eta_hours)
+    # after the previous batch ended. Submission frequency must cover the SLA window so that
+    # any arriving request is submitted within (sla_hours - batch_eta_hours) of its arrival.
+    head_room = sla_hours - batch_eta_hours
+    if head_room <= 0:
+        return max(1, math.ceil(24.0 / batch_eta_hours))
+    return max(1, math.ceil(24.0 / (head_room + batch_eta_hours)))
 
 
 def _build_request(
@@ -213,52 +210,111 @@ def process_with_resubmission(
     batch and missing_source escalates immediately.
     """
     del extractor_client  # reserved for future per-item real-time fallback
-    # TODO: Implement the two-round batch flow.
-    #
-    # Round 1:
-    #   1. Build one request per (policy_id, document) via _build_request and submit
-    #      via batch_client.submit. Collect via batch_client.collect.
-    #   2. For each BatchItemResult (keyed by item.custom_id):
-    #      - status == "succeeded" AND tool_input is not None:
-    #            err = validate_extraction(tool_input)
-    #            - err is None: final[pid] = build_extraction(
-    #                  policy_id=pid, extraction=tool_input,
-    #                  attempt_index=0, history=[],
-    #              )
-    #            - err.category == "missing_source": final[pid] = RetryFutileEscalation(...).
-    #            - else (format / consistency): record the error in history and queue
-    #              this policy for Round 2 with prior_attempts carrying:
-    #                  {"extraction": tool_input,
-    #                   "error_field": err.field,
-    #                   "error_category": err.category,
-    #                   "error_pattern": err.detected_pattern,
-    #                   "error_message": err.message}
-    #            ⚠ A batch ITEM with status="succeeded" can still fail VALIDATION.
-    #               The succeeded status means only that the API call returned a
-    #               tool_use block — the model's output can still be malformed.
-    #               Always run validate_extraction before treating the result as final.
-    #      - status in {"errored", "expired", "canceled"}: queue for Round 2 with
-    #        prior_attempts=[] (no extraction was usable; resubmit without feedback).
-    #
-    #   If nothing was queued, return final.
-    #
-    # Round 2 (single resubmission round):
-    #   1. Build one request per queued policy via
-    #          _build_request(pid, docs_by_id[pid], model=model,
-    #                        prior_attempts=prior or None)
-    #      so the model sees the Round-1 offending value verbatim.
-    #   2. Submit and collect a second batch.
-    #   3. For each result:
-    #      - "succeeded" + valid: final[pid] = build_extraction(..., attempt_index=1).
-    #      - "succeeded" + missing_source: final[pid] = RetryFutileEscalation(...).
-    #      - "succeeded" + format/consistency: escalate with detected_pattern
-    #        prefixed by "retries_exhausted__".
-    #      - non-succeeded: escalate with detected_pattern f"batch_item_{status}".
-    #
-    # ⚠ Why two rounds instead of multi-turn retry inside one batch: the Message
-    # Batches API does not support multi-turn tool conversations within a single
-    # batch request. The retry MUST be a follow-up batch.
-    raise NotImplementedError("LO-B — implement process_with_resubmission.")
+
+    # --- Round 1 ---
+    round_1_requests = [
+        _build_request(pid, doc, model=model) for pid, doc in policies
+    ]
+    batch_id = batch_client.submit(round_1_requests)
+    round_1_results = batch_client.collect(batch_id)
+
+    docs_by_id = dict(policies)
+    final: dict[str, ExtractionOutcome] = {}
+    retry_queue: list[tuple[str, list[dict[str, Any]]]] = []
+    history: dict[str, list[ValidationError]] = {}
+
+    for item in round_1_results:
+        pid = item.custom_id
+        if item.status == "succeeded" and item.tool_input is not None:
+            err = validate_extraction(item.tool_input)
+            if err is None:
+                final[pid] = build_extraction(
+                    policy_id=pid,
+                    extraction=item.tool_input,
+                    attempt_index=0,
+                    history=[],
+                )
+            elif err.category == "missing_source":
+                final[pid] = RetryFutileEscalation(
+                    policy_id=pid,
+                    field=err.field,
+                    category="missing_source",
+                    detected_pattern=err.detected_pattern,
+                    reason=err.message,
+                )
+            else:
+                history.setdefault(pid, []).append(err)
+                retry_queue.append(
+                    (
+                        pid,
+                        [
+                            {
+                                "extraction": item.tool_input,
+                                "error_field": err.field,
+                                "error_category": err.category,
+                                "error_pattern": err.detected_pattern,
+                                "error_message": err.message,
+                            }
+                        ],
+                    )
+                )
+        else:
+            # errored / expired / canceled — resubmit without error feedback context
+            history.setdefault(pid, [])
+            retry_queue.append((pid, []))
+
+    if not retry_queue:
+        return final
+
+    # --- Round 2 (resubmission, single round) ---
+    round_2_requests = [
+        _build_request(pid, docs_by_id[pid], model=model, prior_attempts=prior or None)
+        for pid, prior in retry_queue
+    ]
+    batch_id_2 = batch_client.submit(round_2_requests)
+    round_2_results = batch_client.collect(batch_id_2)
+
+    for item in round_2_results:
+        pid = item.custom_id
+        prior_history = history.get(pid, [])
+        if item.status == "succeeded" and item.tool_input is not None:
+            err = validate_extraction(item.tool_input)
+            if err is None:
+                final[pid] = build_extraction(
+                    policy_id=pid,
+                    extraction=item.tool_input,
+                    attempt_index=1,
+                    history=prior_history,
+                )
+            elif err.category == "missing_source":
+                final[pid] = RetryFutileEscalation(
+                    policy_id=pid,
+                    field=err.field,
+                    category="missing_source",
+                    detected_pattern=err.detected_pattern,
+                    reason=err.message,
+                )
+            else:
+                final[pid] = RetryFutileEscalation(
+                    policy_id=pid,
+                    field=err.field,
+                    category="missing_source",
+                    detected_pattern=f"retries_exhausted__{err.detected_pattern}",
+                    reason=(
+                        "Validator rejected the extraction on both batches. "
+                        f"Last failure: {err.message}"
+                    ),
+                )
+        else:
+            final[pid] = RetryFutileEscalation(
+                policy_id=pid,
+                field="<batch_item>",
+                category="missing_source",
+                detected_pattern=f"batch_item_{item.status}",
+                reason=f"Item {item.status} on resubmission: {item.error}",
+            )
+
+    return final
 
 
 # ---------- Dry-run sample ----------

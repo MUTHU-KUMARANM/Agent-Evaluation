@@ -5,10 +5,10 @@ A "tool" in the Anthropic Messages API is a JSON object with a ``name``,
 ``tool_use`` content block, its ``input`` is guaranteed to validate against
 this schema, which is how this project enforces structured output.
 
-The canonical extractor tool, :func:`extract_mortgage_data`, will be registered
-for the second pass of the pipeline in Exercise 2. The classifier tool,
-:func:`classify_document`, will be registered for the forced first pass. Both
-share the schema you build in :mod:`mortgage_extractor.schema`.
+The canonical extractor tool, :func:`extract_mortgage_data`, is registered for
+the second pass of the pipeline (``tool_choice="any"`` against the per-doc-type
+extractor set; see :mod:`mortgage_extractor.pipeline`). The classifier tool,
+:func:`classify_document`, is registered for the forced first pass.
 """
 from __future__ import annotations
 
@@ -24,70 +24,110 @@ class ToolDefinition(TypedDict):
     input_schema: JsonSchema
 
 
-def extract_mortgage_data() -> ToolDefinition:
-    """Return the canonical mortgage-data extractor tool definition.
+_EXTRACT_DESCRIPTION = (
+    "Extract structured mortgage data from a single document. Use null for any "
+    "field not explicitly stated in the document — do not infer, default, or "
+    "fabricate. When a categorical field's value is not in the listed enum, "
+    "emit 'other' and place the actual value in the corresponding *_detail "
+    "field."
+)
 
-    The tool's input_schema is the full mortgage_data_schema. The description
-    is the model's read-once instruction sheet for what the tool extracts.
-    """
-    # TODO: Return a ToolDefinition with:
-    #   - name: "extract_mortgage_data"
-    #   - description: a short paragraph that names the tool's job AND
-    #     instructs the model to (a) emit null for fields the document does
-    #     not state, and (b) emit "other" plus a *_detail value when a
-    #     categorical enum value does not fit.
-    #   - input_schema: the result of mortgage_data_schema()
-    raise NotImplementedError("Exercise 1: implement extract_mortgage_data()")
+
+def extract_mortgage_data() -> ToolDefinition:
+    """Return the canonical mortgage-data extractor tool definition."""
+    return {
+        "name": "extract_mortgage_data",
+        "description": _EXTRACT_DESCRIPTION,
+        "input_schema": mortgage_data_schema(),
+    }
+
+
+_CLASSIFY_DESCRIPTION = (
+    "Classify a mortgage document into one of the supported document types, "
+    "or 'other' if none apply. Always provide a one-sentence reason describing "
+    "the textual cues that drove the classification."
+)
 
 
 def classify_document() -> ToolDefinition:
-    """Return the document-classifier tool definition.
-
-    The classifier returns one of the four supported document types plus a
-    one-sentence reason. The reason is what surfaces in
-    ``UnsupportedDocumentTypeError`` when the type is ``"other"``.
-    """
-    # TODO: Return a ToolDefinition with:
-    #   - name: "classify_document"
-    #   - description: short instruction to classify into loan_application,
-    #     appraisal, income_verification, or other.
-    #   - input_schema: an object schema with a "document_type" enum field
-    #     (the four values above) and a "reason" string field; both required.
-    raise NotImplementedError("Exercise 1: implement classify_document()")
+    """Return the document-classifier tool definition."""
+    return {
+        "name": "classify_document",
+        "description": _CLASSIFY_DESCRIPTION,
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "document_type": {
+                    "type": "string",
+                    "enum": [
+                        "loan_application",
+                        "appraisal",
+                        "income_verification",
+                        "other",
+                    ],
+                },
+                "reason": {
+                    "type": "string",
+                    "description": (
+                        "One sentence describing the textual cues that drove "
+                        "the classification."
+                    ),
+                },
+            },
+            "required": ["document_type", "reason"],
+        },
+    }
 
 
 def doc_type_extractor(doc_type: DocumentType) -> ToolDefinition:
     """Return a doc-type-tailored extractor tool.
 
-    The canonical schema is shared across document types. This function
-    narrows the schema's ``required`` list to the sections a given document
-    type is expected to carry, so each extractor tool only forces the model
-    to populate the sections that document type actually contains.
-
-    Friction-notes warning: every entry in the per-type required list is a
-    license to fabricate when the document is silent. Pick what each document
-    type *carries*, not what would be nice to have.
+    The canonical schema is shared across document types, but ``required`` is
+    narrowed to the fields a given doc type is expected to carry. (A
+    loan-application document is expected to have borrower / property / loan
+    sections; an appraisal is expected to have property; an income-verification
+    document is expected to have borrower / income.) The model still emits the
+    full record — these per-type required lists just tell it which sections it
+    must populate vs. may leave absent.
     """
-    # TODO: Build a ToolDefinition whose:
-    #   - name is f"extract_{doc_type.value}"
-    #   - description tells the model this is the {doc_type} extractor and
-    #     repeats the null / "other" + *_detail rules
-    #   - input_schema is mortgage_data_schema() with its top-level "required"
-    #     list narrowed by _required_sections_for(doc_type)
-    raise NotImplementedError("Exercise 1: implement doc_type_extractor()")
+    schema = mortgage_data_schema()
+    schema["required"] = _required_sections_for(doc_type)
+    return {
+        "name": f"extract_{doc_type.value}",
+        "description": (
+            f"Extract structured mortgage data from a {doc_type.value} "
+            "document. Use null for any field not explicitly stated. "
+            "When a categorical field's value is not in the listed enum, "
+            "emit 'other' and write the actual value into the corresponding "
+            "*_detail field."
+        ),
+        "input_schema": schema,
+    }
 
 
 def flag_for_review() -> ToolDefinition:
     """Return the escape-hatch tool the model calls when it cannot extract.
 
-    Registered alongside the doc-type-specific extractor for Exercise 2's
-    ``tool_choice="any"`` extraction pass. The presence of this second tool
-    is what makes ``"any"`` meaningful — with only one tool registered, the
-    API behaves the same as forced.
+    Registered alongside the doc-type-specific extractor for the
+    ``tool_choice="any"`` extraction pass; the model must call one of the two.
     """
-    # TODO: Return a ToolDefinition named "flag_for_review" with a "reason"
-    # string field in input_schema (required).
-    raise NotImplementedError("Exercise 1: implement flag_for_review()")
+    return {
+        "name": "flag_for_review",
+        "description": (
+            "Call this when the document is too unclear, damaged, or off-topic "
+            "to extract confidently. Provide a one-sentence reason."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": "One sentence describing why extraction is not possible.",
+                },
+            },
+            "required": ["reason"],
+        },
+    }
 
 
 def _required_sections_for(doc_type: DocumentType) -> list[str]:
@@ -98,14 +138,17 @@ def _required_sections_for(doc_type: DocumentType) -> list[str]:
     document identifies the borrower and reports their income; it typically
     does not state the loan amount or describe the property.
     """
-    # TODO: Return the required-sections list for each DocumentType:
-    #   LOAN_APPLICATION -> ["borrower", "property", "loan"]
-    #   APPRAISAL        -> ["property"]
-    #   INCOME_VERIFICATION -> ["borrower", "income"]
-    #   OTHER            -> raise ValueError (this function should never be
-    #                       called with OTHER; Exercise 2 short-circuits at
-    #                       classify time)
-    raise NotImplementedError("Exercise 1: implement _required_sections_for()")
+    match doc_type:
+        case DocumentType.LOAN_APPLICATION:
+            return ["borrower", "property", "loan"]
+        case DocumentType.APPRAISAL:
+            return ["property"]
+        case DocumentType.INCOME_VERIFICATION:
+            return ["borrower", "income"]
+        case DocumentType.OTHER:
+            raise ValueError(
+                "doc_type_extractor should never be called for DocumentType.OTHER"
+            )
 
 
 __all__ = [

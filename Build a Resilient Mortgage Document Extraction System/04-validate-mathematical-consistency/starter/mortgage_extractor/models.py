@@ -70,16 +70,15 @@ class Income(_BaseRecord):
         components" from "the document stated all components are zero". The
         validator interprets the two cases differently.
         """
-        # TODO: Return the sum of base_monthly, bonus_monthly,
-        # commission_monthly, overtime_monthly, and other_monthly, ignoring any
-        # that are None. If NO component is set (every field is None), return
-        # None — NOT 0.0. The validator depends on that distinction: a
-        # document that stated no income components must not be treated as
-        # "stated zero", which would mask real bugs in the pipeline.
-        #
-        # Hint: build a list of the five component values, filter out None,
-        # and return sum() of what's left OR None if the filtered list is empty.
-        raise NotImplementedError("Exercise 4: implement Income.calculated_monthly_total")
+        components = [
+            self.base_monthly,
+            self.bonus_monthly,
+            self.commission_monthly,
+            self.overtime_monthly,
+            self.other_monthly,
+        ]
+        non_null = [c for c in components if c is not None]
+        return sum(non_null) if non_null else None
 
 
 class MortgageExtraction(_BaseRecord):

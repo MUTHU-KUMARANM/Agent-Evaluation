@@ -46,13 +46,39 @@ def investigate(
     logistics_fail_after: int = 5,
     memory: SharedMemory | None = None,
 ) -> InvestigationResult:
-    # TODO: Run every reader (audit, logistics, quality, and read_news for each
-    #   article in data_dir/news). Pass fail_after to read_logistics only when
-    #   simulate_logistics_timeout is set.
-    # TODO: Keep only claims from successful reads (r.ok). For each FAILED read,
-    #   record an "unavailable" note and map the source's EXCLUSIVE_METRICS to a
-    #   gap reason — but only for metrics no surviving source reported.
-    # TODO: Add ONLY the successful claims to shared memory (never partial results),
-    #   then call build_briefing with the unavailable annotations. Return an
-    #   InvestigationResult carrying the briefing and all reader_results.
-    raise NotImplementedError
+    data_dir = Path(data_dir)
+    results: list[ReaderResult] = [
+        read_audit(data_dir / "audit.json"),
+        read_logistics(
+            data_dir / "logistics.csv",
+            fail_after=logistics_fail_after if simulate_logistics_timeout else None,
+        ),
+        read_quality(data_dir / "quality.sqlite"),
+    ]
+    for article in sorted((data_dir / "news").glob("*.txt")):
+        results.append(read_news(article, extractor))
+
+    ok_claims = [c for r in results if r.ok for c in r.claims]
+    present = {c.metric_id for c in ok_claims}
+
+    unavailable: dict[str, str] = {}
+    unavailable_sources: list[str] = []
+    for r in results:
+        if r.ok or r.error is None:
+            continue
+        reason = f"{r.source} unavailable ({r.error.failure_type})"
+        unavailable_sources.append(reason)
+        for metric_id in EXCLUSIVE_METRICS.get(r.source, ()):
+            if metric_id not in present:
+                unavailable[metric_id] = f"{r.error.failure_type} reading {r.source}"
+
+    mem = memory if memory is not None else SharedMemory()
+    mem.add_claims(ok_claims)  # only successful claims are vectorized
+    briefing = build_briefing(
+        supplier,
+        ok_claims,
+        mem,
+        unavailable=unavailable,
+        unavailable_sources=unavailable_sources,
+    )
+    return InvestigationResult(briefing=briefing, reader_results=results)

@@ -104,26 +104,16 @@ def build_review_messages(
     Critically: nothing from the extractor's prompts, reasoning, or tool-call history
     flows into this prompt. Only the raw source document + the proposed extraction.
     """
-    # TODO: Build the reviewer's (messages, system) tuple from JUST two things:
-    # the raw source document and the proposed extraction (as pretty-printed JSON).
-    #
-    # ⚠ This is the heart of LO-C. Independence is enforced by *what you do NOT put
-    # into the prompt*, not by an SDK feature. Do NOT pass any of the extractor's
-    # messages, system prompt, tool-call ids, scratchpad, or <thinking> blocks.
-    # If you find yourself passing `[messages_from_extractor, new_user_msg]`, stop —
-    # that defeats the entire pattern.
-    #
-    # Suggested shape for the user content:
-    #   <source_document>
-    #     {source_document.strip()}
-    #   </source_document>
-    #
-    #   <proposed_extraction>
-    #     {json.dumps(extracted_record, indent=2, sort_keys=True)}
-    #   </proposed_extraction>
-    #
-    # Return ([{"role": "user", "content": <the above>}], REVIEWER_SYSTEM_PROMPT).
-    raise NotImplementedError("LO-C — implement build_review_messages.")
+    extraction_json = json.dumps(extracted_record, indent=2, sort_keys=True)
+    user_content = (
+        "<source_document>\n"
+        f"{source_document.strip()}\n"
+        "</source_document>\n\n"
+        "<proposed_extraction>\n"
+        f"{extraction_json}\n"
+        "</proposed_extraction>"
+    )
+    return [{"role": "user", "content": user_content}], REVIEWER_SYSTEM_PROMPT
 
 
 def independent_review(
@@ -135,22 +125,30 @@ def independent_review(
     max_tokens: int = 2048,
 ) -> ReviewResult:
     """Run the reviewer and parse its per-field judgement."""
-    # TODO: Implement the reviewer call.
-    #
-    # 1. messages, system = build_review_messages(source_document=..., extracted_record=...).
-    # 2. response = client.create(
-    #        model=model, max_tokens=max_tokens, system=system, messages=messages,
-    #        tools=[REVIEW_TOOL],
-    #        tool_choice={"type": "tool", "name": "review_extraction"},
-    #    )
-    # 3. field_reviews = _parse_field_reviews(response).
-    # 4. Build ReviewResult.agreements: {fr["field"]: FieldAgreement(
-    #        field=fr["field"],
-    #        agreement=fr["agreement"],
-    #        reason=fr.get("reason"),
-    #        review_confidence=float(fr["review_confidence"]),
-    #    ) for fr in field_reviews}.
-    raise NotImplementedError("LO-C — implement independent_review.")
+    messages, system = build_review_messages(
+        source_document=source_document,
+        extracted_record=extracted_record,
+    )
+    response = client.create(
+        model=model,
+        max_tokens=max_tokens,
+        system=system,
+        messages=messages,
+        tools=[REVIEW_TOOL],
+        tool_choice={"type": "tool", "name": "review_extraction"},
+    )
+    field_reviews = _parse_field_reviews(response)
+    return ReviewResult(
+        agreements={
+            fr["field"]: FieldAgreement(
+                field=fr["field"],
+                agreement=fr["agreement"],
+                reason=fr.get("reason"),
+                review_confidence=float(fr["review_confidence"]),
+            )
+            for fr in field_reviews
+        }
+    )
 
 
 def _parse_field_reviews(message: Any) -> list[dict[str, Any]]:
@@ -181,29 +179,50 @@ class IntegrationFinding:
 
 def integration_pass(extraction: PolicyExtraction) -> list[IntegrationFinding]:
     """Cross-field consistency checks. Pure function over a single extraction."""
-    # TODO: Run the three integration checks in order and return their findings.
-    #
-    # 1. _check_coverage_limit_vs_endorsements(extraction) → always emits a finding.
-    # 2. _check_endorsements_vs_exclusions(extraction) → always emits a finding.
-    # 3. _check_premium_vs_components(extraction) → may return None (no components
-    #    or no stated premium). Only append if not None.
-    #
-    # Order matters for downstream readability; keep it as listed above.
-    raise NotImplementedError("LO-C — implement integration_pass.")
+    findings: list[IntegrationFinding] = [
+        _check_coverage_limit_vs_endorsements(extraction),
+        _check_endorsements_vs_exclusions(extraction),
+    ]
+    components_check = _check_premium_vs_components(extraction)
+    if components_check is not None:
+        findings.append(components_check)
+    return findings
 
 
 def _check_coverage_limit_vs_endorsements(extraction: PolicyExtraction) -> IntegrationFinding:
-    # TODO: Verify coverage_limit >= sum(endorsements.limit).
-    #
-    # 1. If extraction.coverage_limit is None OR extraction.endorsements is None:
-    #    return a "pass" finding noting the check was skipped (missing inputs).
-    # 2. endorsement_total = sum(e.limit for e in extraction.endorsements if e.limit is not None).
-    # 3. If endorsement_total == 0: "pass" — no endorsements carry numeric limits.
-    # 4. If extraction.coverage_limit >= endorsement_total: "pass" with the comparison
-    #    in the details so a reader can see the math.
-    # 5. Otherwise: "fail" — the primary coverage cannot be smaller than what the
-    #    endorsements promise. detected check_name="coverage_limit_exceeds_endorsement_sum".
-    raise NotImplementedError("LO-C — implement _check_coverage_limit_vs_endorsements.")
+    if extraction.coverage_limit is None or extraction.endorsements is None:
+        return IntegrationFinding(
+            check_name="coverage_limit_exceeds_endorsement_sum",
+            status="pass",
+            details="coverage_limit or endorsements absent — check skipped.",
+        )
+    endorsement_total = sum(
+        e.limit for e in extraction.endorsements if e.limit is not None
+    )
+    if endorsement_total == 0:
+        return IntegrationFinding(
+            check_name="coverage_limit_exceeds_endorsement_sum",
+            status="pass",
+            details="No endorsements carry numeric limits.",
+        )
+    if extraction.coverage_limit >= endorsement_total:
+        return IntegrationFinding(
+            check_name="coverage_limit_exceeds_endorsement_sum",
+            status="pass",
+            details=(
+                f"coverage_limit={extraction.coverage_limit} >= "
+                f"sum(endorsement.limit)={endorsement_total}."
+            ),
+        )
+    return IntegrationFinding(
+        check_name="coverage_limit_exceeds_endorsement_sum",
+        status="fail",
+        details=(
+            f"coverage_limit={extraction.coverage_limit} is less than the sum of "
+            f"endorsement limits ({endorsement_total}). The primary coverage cannot "
+            "be smaller than what the endorsements promise."
+        ),
+    )
 
 
 _STOPWORDS = frozenset(
@@ -226,23 +245,34 @@ def _bigrams(text: str) -> set[tuple[str, str]]:
 
 
 def _check_endorsements_vs_exclusions(extraction: PolicyExtraction) -> IntegrationFinding:
-    # TODO: Find contradictions where an endorsement and an exclusion describe the
-    # same coverage. check_name="endorsements_exclusions_non_contradiction".
-    #
-    # ⚠ Match strategy matters here:
-    #   - Exact string match → misses almost every real contradiction (wording
-    #     never lines up perfectly between the endorsement schedule and exclusion list).
-    #   - Full-text any-token overlap → false positives on filler words ("the", "a").
-    #   - Bigrams (pairs of adjacent content words, stopwords removed) + the
-    #     pre-built _STOPWORDS list and _bigrams() helper → the cheapest workable
-    #     middle ground; both names must share at least one content-word bigram.
-    #
-    # If extraction.endorsements is empty: return "pass" (nothing to compare).
-    # Walk every (endorsement, exclusion) pair; if _bigrams(endorsement.name) &
-    # _bigrams(exclusion) is non-empty, record the pair as a contradiction.
-    # No contradictions → "pass" with a brief detail. Any contradictions → "fail"
-    # listing each pair in the detail.
-    raise NotImplementedError("LO-C — implement _check_endorsements_vs_exclusions.")
+    if not extraction.endorsements:
+        return IntegrationFinding(
+            check_name="endorsements_exclusions_non_contradiction",
+            status="pass",
+            details="No endorsements to compare against exclusions.",
+        )
+    contradictions: list[tuple[Endorsement, str]] = []
+    for endorsement in extraction.endorsements:
+        endorsement_bigrams = _bigrams(endorsement.name)
+        if not endorsement_bigrams:
+            continue
+        for exclusion in extraction.exclusions:
+            if endorsement_bigrams & _bigrams(exclusion):
+                contradictions.append((endorsement, exclusion))
+    if not contradictions:
+        return IntegrationFinding(
+            check_name="endorsements_exclusions_non_contradiction",
+            status="pass",
+            details="No overlapping noun-phrases between endorsements and exclusions.",
+        )
+    detail = "; ".join(
+        f"endorsement '{e.name}' overlaps with exclusion '{x}'" for e, x in contradictions
+    )
+    return IntegrationFinding(
+        check_name="endorsements_exclusions_non_contradiction",
+        status="fail",
+        details=f"Potential contradiction(s): {detail}",
+    )
 
 
 def _check_premium_vs_components(extraction: PolicyExtraction) -> IntegrationFinding | None:

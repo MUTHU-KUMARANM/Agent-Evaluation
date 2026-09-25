@@ -53,13 +53,20 @@ _CLAIM_SCHEMA: dict[str, Any] = {
 
 
 def _system_prompt(supplier: str) -> str:
-    # TODO: Return a system prompt that names the target supplier, states the goal
-    #   (extract supply-chain risk findings as a structured claim-source mapping),
-    #   and states the output contract — not step-by-step parsing rules. It must
-    #   instruct the model to return an empty list for an unrelated article, and to
-    #   set needs_identifier=true with a candidate list (rather than guessing) when
-    #   the supplier is named ambiguously.
-    raise NotImplementedError
+    return (
+        "You extract supply-chain risk findings about a specific supplier from a "
+        "news article, as a structured claim-source mapping.\n\n"
+        f"Target supplier: {supplier!r}.\n\n"
+        "Output contract: return only claims that bear on the target supplier's "
+        "delivery, quality, or financial risk. Each claim carries the article's "
+        "publication date as source_date and a calibrated confidence in [0,1]. "
+        "If the article is unrelated to the target supplier, return an empty list. "
+        "If the article names the supplier ambiguously — multiple distinct entities "
+        "could be the subject — do NOT guess which one: emit the claim with "
+        "needs_identifier=true and list the candidate entity names, so a human can "
+        "supply an identifier. Choose a stable snake_case metric_id describing the "
+        "risk (e.g. port_disruption, supplier_financial_distress, field_quality_concern)."
+    )
 
 
 class AnthropicNewsExtractor:
@@ -74,12 +81,17 @@ class AnthropicNewsExtractor:
         self._client: Any = client
 
     def extract(self, article_text: str) -> list[dict[str, object]]:
-        # TODO: Call self._client.messages.create with model=MODEL, the system
-        #   prompt from self._system_prompt_for(), and structured output via
-        #   output_config={"format": {"type": "json_schema", "schema": _CLAIM_SCHEMA}}
-        #   (no assistant prefill). Parse the JSON text block and return
-        #   payload["claims"] as a list of dicts.
-        raise NotImplementedError
+        response = self._client.messages.create(
+            model=MODEL,
+            max_tokens=2048,
+            thinking={"type": "adaptive"},
+            system=self._system_prompt_for(),
+            output_config={"format": {"type": "json_schema", "schema": _CLAIM_SCHEMA}},
+            messages=[{"role": "user", "content": article_text}],
+        )
+        text = next(b.text for b in response.content if b.type == "text")
+        payload: dict[str, Any] = json.loads(text)
+        return list(payload["claims"])
 
     def _system_prompt_for(self) -> str:
         return _system_prompt(self.supplier)

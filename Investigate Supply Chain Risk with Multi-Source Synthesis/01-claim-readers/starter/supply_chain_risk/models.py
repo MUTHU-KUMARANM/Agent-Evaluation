@@ -25,20 +25,16 @@ class Claim(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    # TODO: Declare the claim's fields. Every claim must carry, at minimum:
-    #   claim: str, evidence: str, source: str, source_date: date,
-    #   confidence: float (validated to the range 0.0-1.0 with Field(ge=, le=)),
-    #   and metric_id: str.
-    # source_date has NO default, so a claim cannot be built without a date.
     claim: str
-    # TODO: add evidence, source, source_date, confidence (validated), metric_id
-
-    # TODO: Add the optional numeric fields value: float | None and unit: str | None
-    #       (default None) used for conflict detection on quantitative metrics.
-
-    # TODO: Add the ambiguity fields: needs_identifier: bool = False and
-    #       candidates. Note: this model is frozen (hashable), so a list field
-    #       breaks hashing — use a tuple, e.g. candidates: tuple[str, ...] = ().
+    evidence: str
+    source: str
+    source_date: date
+    confidence: float = Field(ge=0.0, le=1.0)
+    metric_id: str
+    value: float | None = None
+    unit: str | None = None
+    needs_identifier: bool = False
+    candidates: tuple[str, ...] = ()
 
 
 class FailureContext(BaseModel):

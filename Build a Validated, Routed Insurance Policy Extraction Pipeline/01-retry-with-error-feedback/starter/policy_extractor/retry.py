@@ -40,43 +40,73 @@ def extract_with_retry(
     Returns PolicyExtraction on success, RetryFutileEscalation when the source
     document is missing required information (no retry attempted).
     """
-    # TODO: Implement the retry-with-error-feedback loop.
-    #
-    # State you'll carry across attempts:
-    #   prior_attempts: list[dict[str, Any]] = []    # feeds build_extraction_messages
-    #   history: list[ValidationError] = []           # records every rejected attempt
-    #
-    # For attempt_index in range(max_retries + 1):
-    #   1. messages, system = build_extraction_messages(document_text, prior_attempts).
-    #   2. response = client.create(
-    #          model=model, max_tokens=max_tokens, system=system, messages=messages,
-    #          tools=[EXTRACT_POLICY_TOOL],
-    #          tool_choice={"type": "tool", "name": "extract_policy"},
-    #      )
-    #      ⚠ tool_choice REQUIRES both "type" AND "name" keys. Passing only
-    #      {"name": "..."} silently lets the model decide not to call the tool;
-    #      parse_tool_use will then raise because there is no tool_use block.
-    #   3. extraction = parse_tool_use(response).
-    #   4. error = validate_extraction(extraction).
-    #      - error is None → success. Return build_extraction(
-    #            policy_id=policy_id, extraction=extraction,
-    #            attempt_index=attempt_index, history=history,
-    #        ).
-    #      - error.category == "missing_source" → return RetryFutileEscalation
-    #        immediately. The source doc is missing data; no retry can fix that.
-    #      - error.category in {"format", "consistency"} → append the error to
-    #        history, append a dict shaped like
-    #            {"extraction": extraction,
-    #             "error_field": error.field,
-    #             "error_category": error.category,
-    #             "error_pattern": error.detected_pattern,
-    #             "error_message": error.message}
-    #        to prior_attempts, and continue the loop.
-    #
-    # If the loop falls through (all max_retries exhausted on format/consistency),
-    # return a RetryFutileEscalation referencing the last error with
-    # detected_pattern=f"retries_exhausted__{last_error.detected_pattern}".
-    raise NotImplementedError("LO-A — implement extract_with_retry.")
+    prior_attempts: list[dict[str, Any]] = []
+    history: list[ValidationError] = []
+
+    for attempt_index in range(max_retries + 1):
+        messages, system = build_extraction_messages(document_text, prior_attempts)
+        response = client.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            messages=messages,
+            tools=[EXTRACT_POLICY_TOOL],
+            tool_choice={"type": "tool", "name": "extract_policy"},
+        )
+        extraction = parse_tool_use(response)
+
+        error = validate_extraction(extraction)
+        if error is None:
+            return build_extraction(
+                policy_id=policy_id,
+                extraction=extraction,
+                attempt_index=attempt_index,
+                history=history,
+            )
+
+        history.append(error)
+        logger.info(
+            "validation_failed",
+            extra={
+                "policy_id": policy_id,
+                "attempt": attempt_index,
+                "category": error.category,
+                "detected_pattern": error.detected_pattern,
+                "field": error.field,
+            },
+        )
+
+        if error.category == "missing_source":
+            return RetryFutileEscalation(
+                policy_id=policy_id,
+                field=error.field,
+                category="missing_source",
+                detected_pattern=error.detected_pattern,
+                reason=error.message,
+            )
+
+        prior_attempts.append(
+            {
+                "extraction": extraction,
+                "error_field": error.field,
+                "error_category": error.category,
+                "error_pattern": error.detected_pattern,
+                "error_message": error.message,
+            }
+        )
+
+    # All retries exhausted on format/consistency failures — escalate as well.
+    last_error = history[-1]
+    return RetryFutileEscalation(
+        policy_id=policy_id,
+        field=last_error.field,
+        category="missing_source",
+        detected_pattern=f"retries_exhausted__{last_error.detected_pattern}",
+        reason=(
+            f"Validator rejected the extraction {len(history)} times in a row. Last "
+            f"failure: {last_error.message}"
+        ),
+    )
 
 
 def build_extraction(
@@ -86,7 +116,6 @@ def build_extraction(
     attempt_index: int,
     history: list[ValidationError],
 ) -> PolicyExtraction:
-    """Marshal a validated extraction dict into a PolicyExtraction dataclass record."""
     raw_endorsements = extraction.get("endorsements")
     if raw_endorsements is None:
         endorsements: list[Endorsement] | None = None

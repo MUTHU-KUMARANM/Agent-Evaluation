@@ -1,7 +1,7 @@
 """CLI entry point for the policy-extractor pipeline.
 
-At this stage the `extract` and `batch` subcommands are wired up.
-Later exercises will add `pipeline` once the reviewer and routing layers exist.
+Subcommands: extract, batch,
+review, route, pipeline (end-to-end).
 """
 from __future__ import annotations
 
@@ -24,8 +24,20 @@ from policy_extractor.client import AnthropicMessagesClient
 from policy_extractor.records import (
     ExtractionOutcome,
     PolicyExtraction,
+    RetryFutileEscalation,
 )
 from policy_extractor.retry import extract_with_retry
+from policy_extractor.reviewer import (
+    has_disagreement,
+    independent_review,
+    integration_pass,
+)
+from policy_extractor.routing import (
+    apply_stratified_spot_check,
+    route_extraction,
+    write_routing_decisions,
+)
+from policy_extractor.summary import summarize_patterns
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,6 +61,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_batch.add_argument("--force", action="store_true", help="Skip the sample-rate gate.")
 
+    p_pipeline = sub.add_parser(
+        "pipeline", help="End-to-end: extract → review → integration → route (US-01..US-04).",
+    )
+    p_pipeline.add_argument("policies_dir", type=Path)
+    p_pipeline.add_argument("--routing-out", type=Path, default=Path("routing_decisions.json"))
+    p_pipeline.add_argument("--spot-check-pct", type=float, default=0.1)
+    p_pipeline.add_argument("--seed", type=int, default=None)
+
     args = parser.parse_args(argv)
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stderr,
@@ -58,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_extract(args)
     if args.command == "batch":
         return _cmd_batch(args)
+    if args.command == "pipeline":
+        return _cmd_pipeline(args)
     return 2
 
 
@@ -109,6 +131,68 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         policies=policies,
     )
     print(json.dumps({pid: _serialize_outcome(o) for pid, o in results.items()}, indent=2))
+    return 0
+
+
+def _cmd_pipeline(args: argparse.Namespace) -> int:
+    policies = _load_policies(args.policies_dir)
+    extractor_client = AnthropicMessagesClient(Anthropic())
+
+    decisions = []
+    outcomes: list[ExtractionOutcome] = []
+    for pid, doc in policies:
+        outcome = extract_with_retry(
+            client=extractor_client, policy_id=pid, document_text=doc, max_retries=3,
+        )
+        outcomes.append(outcome)
+        if isinstance(outcome, RetryFutileEscalation):
+            continue
+        review = independent_review(
+            client=extractor_client,
+            source_document=doc,
+            extracted_record={
+                "policy_id": outcome.policy_id,
+                "policy_type": outcome.policy_type,
+                "premium_amount": outcome.premium_amount,
+                "deductible": outcome.deductible,
+                "coverage_limit": outcome.coverage_limit,
+                "endorsements": [
+                    {"name": e.name, "limit": e.limit}
+                    for e in (outcome.endorsements or [])
+                ],
+                "exclusions": outcome.exclusions,
+            },
+        )
+        integration = integration_pass(outcome)
+        decision = route_extraction(
+            extraction=outcome,
+            review=review,
+            integration_findings=integration,
+        )
+        if has_disagreement(review):
+            disagreeing_fields = [
+                f for f, a in review.agreements.items() if a.agreement == "disagree"
+            ]
+            logging.info(
+                "review_disagreement policy_id=%s fields=%s",
+                outcome.policy_id,
+                disagreeing_fields,
+            )
+        decisions.append(decision)
+
+    decisions = apply_stratified_spot_check(
+        decisions, sample_pct=args.spot_check_pct, seed=args.seed,
+    )
+    write_routing_decisions(decisions, args.routing_out)
+    print(json.dumps({
+        "decisions_written": len(decisions),
+        "auto_approve": sum(1 for d in decisions if d.decision == "auto_approve"),
+        "human_review": sum(1 for d in decisions if d.decision == "human_review"),
+        "spot_check": sum(1 for d in decisions if d.decision == "spot_check"),
+        "escalations": sum(1 for o in outcomes if isinstance(o, RetryFutileEscalation)),
+        "pattern_summary": summarize_patterns(outcomes),
+        "output_path": str(args.routing_out),
+    }, indent=2, default=dict))
     return 0
 
 

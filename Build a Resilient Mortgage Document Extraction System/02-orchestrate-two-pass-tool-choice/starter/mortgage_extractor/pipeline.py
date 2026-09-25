@@ -55,69 +55,78 @@ class Pipeline:
         self.max_tokens = max_tokens
 
     def run(self, document_text: str) -> MortgageExtraction:
-        """Classify, then extract. Short-circuit on DocumentType.OTHER."""
-        # TODO: Run the two-pass flow:
-        #   1. Call self.classify_document(document_text). Save the result.
-        #   2. If the classified document_type is DocumentType.OTHER, raise
-        #      UnsupportedDocumentTypeError with the classification's reason.
-        #      (The error class is already imported.)
-        #   3. Otherwise return self.extract(document_text, classification.document_type).
-        raise NotImplementedError("Exercise 2: implement Pipeline.run()")
+        classification = self.classify_document(document_text)
+        if classification.document_type is DocumentType.OTHER:
+            raise UnsupportedDocumentTypeError(classification.reason)
+        return self.extract(document_text, classification.document_type)
 
     def classify_document(self, document_text: str) -> Classification:
-        """Pass 1: forced classifier call.
-
-        Force the model to call the classifier tool exactly once via
-        ``tool_choice={"type": "tool", "name": <classifier name>}``. This pass
-        must produce a routing decision, not free text.
-        """
-        # TODO: Implement pass 1.
-        #   - Get the classifier tool definition by calling classify_document()
-        #     (the function imported from mortgage_extractor.tools).
-        #   - Call self.client.call(...) with these kwargs:
-        #       model=self.model,
-        #       max_tokens=self.max_tokens,
-        #       system=prompts.classifier_system_prompt(),
-        #       tools=[<the classifier tool definition>],
-        #       tool_choice={"type": "tool", "name": <the classifier's name>},
-        #       messages=[{"role": "user", "content": document_text}],
-        #   - Pass the response to _single_tool_use_block(..., expected_name=<classifier name>).
-        #   - Return Classification.model_validate(block.input).
-        raise NotImplementedError("Exercise 2: implement Pipeline.classify_document()")
+        classifier = classify_document()
+        response = self.client.call(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system=prompts.classifier_system_prompt(),
+            tools=[classifier],
+            tool_choice={"type": "tool", "name": classifier["name"]},
+            messages=[{"role": "user", "content": document_text}],
+        )
+        block = _single_tool_use_block(response, expected_name=classifier["name"])
+        log.info(
+            "classify: model=%s in=%d out=%d type=%s",
+            self.model,
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+            block.input.get("document_type") if isinstance(block.input, dict) else "?",
+        )
+        return Classification.model_validate(block.input)
 
     def extract(
         self,
         document_text: str,
         doc_type: DocumentType,
     ) -> MortgageExtraction:
-        """Pass 2: tool_choice="any" extraction.
+        if doc_type is DocumentType.OTHER:
+            raise UnsupportedDocumentTypeError(
+                "extract() called with DocumentType.OTHER; classifier should "
+                "have short-circuited earlier."
+            )
 
-        Register the doc-type-specific extractor alongside ``flag_for_review``
-        and let the model choose. ``"any"`` is what makes that choice
-        meaningful — with a single tool registered, the API would behave the
-        same as forced.
-        """
-        # TODO: Implement pass 2.
-        #   - Defensive guard: if doc_type is DocumentType.OTHER, raise
-        #     UnsupportedDocumentTypeError immediately with a message that
-        #     says extract() should not be called for OTHER (the classifier
-        #     short-circuits earlier). This guard makes extract() safe for
-        #     callers who bypass run().
-        #   - Build tools = [doc_type_extractor(doc_type), flag_for_review()].
-        #   - Call self.client.call(...) with:
-        #       model=self.model,
-        #       max_tokens=self.max_tokens,
-        #       system=prompts.extractor_system_prompt(doc_type),
-        #       tools=tools,
-        #       tool_choice={"type": "any"},
-        #       messages=[{"role": "user", "content": document_text}],
-        #   - Pass the response to _single_tool_use_block(response).
-        #   - If the block.name is "flag_for_review", raise FlaggedForReviewError
-        #     with the reason from block.input.
-        #   - If the block.name is the doc-type extractor's name, return
-        #     MortgageExtraction.model_validate(block.input).
-        #   - Otherwise raise ExtractionError because an unexpected tool was called.
-        raise NotImplementedError("Exercise 2: implement Pipeline.extract()")
+        tools: list[ToolDefinition] = [
+            doc_type_extractor(doc_type),
+            flag_for_review(),
+        ]
+        response = self.client.call(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system=prompts.extractor_system_prompt(doc_type),
+            tools=tools,
+            tool_choice={"type": "any"},
+            messages=[{"role": "user", "content": document_text}],
+        )
+
+        block = _single_tool_use_block(response)
+        log.info(
+            "extract: model=%s in=%d out=%d tool=%s",
+            self.model,
+            response.usage.input_tokens,
+            response.usage.output_tokens,
+            block.name,
+        )
+
+        if block.name == "flag_for_review":
+            reason = ""
+            if isinstance(block.input, dict):
+                reason = str(block.input.get("reason", ""))
+            raise FlaggedForReviewError(reason)
+
+        expected_extractor = doc_type_extractor(doc_type)["name"]
+        if block.name != expected_extractor:
+            raise ExtractionError(
+                f"Unexpected tool call: {block.name!r} (expected "
+                f"{expected_extractor!r} or 'flag_for_review')"
+            )
+
+        return MortgageExtraction.model_validate(block.input)
 
 
 def _single_tool_use_block(
@@ -125,17 +134,20 @@ def _single_tool_use_block(
     *,
     expected_name: str | None = None,
 ) -> ToolUseBlock:
-    """Pull the one ToolUseBlock out of an Anthropic Message response.
-
-    Structured output lives in the ``tool_use`` block, not in the assistant
-    text. Walk ``response.content`` looking for ``ToolUseBlock`` entries; if
-    ``expected_name`` is set, narrow to matching blocks.
-    """
-    # TODO: Implement the tool-use extractor.
-    #   - Filter response.content for instances of ToolUseBlock.
-    #   - If there are none, raise ExtractionError with a message that lists
-    #     the actual content-block types received (e.g. ["TextBlock"]).
-    #   - If expected_name is None, return the first tool-use block.
-    #   - Otherwise return the first block whose .name == expected_name. If
-    #     none match, raise ExtractionError naming the block names received.
-    raise NotImplementedError("Exercise 2: implement _single_tool_use_block()")
+    tool_uses: list[ToolUseBlock] = [
+        block for block in response.content if isinstance(block, ToolUseBlock)
+    ]
+    if not tool_uses:
+        raise ExtractionError(
+            "Response contained no tool_use block; got "
+            f"{[type(b).__name__ for b in response.content]!r}"
+        )
+    if expected_name is not None:
+        named = [b for b in tool_uses if b.name == expected_name]
+        if not named:
+            raise ExtractionError(
+                f"Expected tool_use for {expected_name!r}, got "
+                f"{[b.name for b in tool_uses]!r}"
+            )
+        return named[0]
+    return tool_uses[0]

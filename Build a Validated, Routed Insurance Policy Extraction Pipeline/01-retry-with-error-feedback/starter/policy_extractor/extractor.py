@@ -165,24 +165,22 @@ def build_extraction_messages(
     user_content = f"<document>\n{document_text.strip()}\n</document>"
 
     if prior_attempts:
-        # TODO: Build the retry-feedback block.
-        #
-        # The model can only correct what it can actually see. Append a <prior_attempt>
-        # block for each entry in prior_attempts, embedding the *raw prior extraction
-        # value verbatim* (not a paraphrase of the error) plus the validation error's
-        # field, category, detected_pattern, and message. The pattern that works in
-        # practice is:
-        #
-        #   <prior_attempt index="1">
-        #     <extraction>{attempt['extraction']}</extraction>
-        #     <validation_error field="..." category="..." detected_pattern="...">
-        #       {attempt['error_message']}
-        #     </validation_error>
-        #   </prior_attempt>
-        #
-        # Then join the blocks with newlines and append to user_content with a short
-        # instruction line ("Your previous attempts were rejected by the validator. ...").
-        raise NotImplementedError("LO-A — implement the retry-feedback block.")
+        feedback_blocks: list[str] = []
+        for i, attempt in enumerate(prior_attempts, start=1):
+            feedback_blocks.append(
+                f"<prior_attempt index=\"{i}\">\n"
+                f"  <extraction>{attempt['extraction']}</extraction>\n"
+                f"  <validation_error field=\"{attempt['error_field']}\" "
+                f"category=\"{attempt['error_category']}\" "
+                f"detected_pattern=\"{attempt['error_pattern']}\">\n"
+                f"    {attempt['error_message']}\n"
+                f"  </validation_error>\n"
+                f"</prior_attempt>"
+            )
+        user_content += (
+            "\n\nYour previous attempts were rejected by the validator. Review the "
+            "errors and produce a corrected extraction.\n\n" + "\n".join(feedback_blocks)
+        )
 
     return [{"role": "user", "content": user_content}], SYSTEM_PROMPT
 
