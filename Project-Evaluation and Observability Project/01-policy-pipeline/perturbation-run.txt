@@ -1,0 +1,4 @@
+Command: python -m pytest -q "Build a Validated, Routed Insurance Policy Extraction Pipeline\04-hitl-routing\solution\tests\test_us01_retry.py" -k missing_source_halts_immediately
+Result: 1 passed, 13 deselected in 0.03s
+The test supplies a recorded response with endorsements=null. It asserts the outcome is RetryFutileEscalation, field=endorsements, detected_pattern=endorsements_absent, and exactly one RecordedClient call. This is a deterministic offline test, not an Anthropic API request.
+

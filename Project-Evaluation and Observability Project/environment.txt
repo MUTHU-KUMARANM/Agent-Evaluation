@@ -1,0 +1,7 @@
+Run date: 2026-09-26
+OS: Microsoft Windows NT 10.0.26200.0 (Windows 11 build 26200)
+Python: 3.12.14
+ANTHROPIC_API_KEY present: no (presence checked; no secret value read or stored)
+Live Anthropic API test: not run; the SDK reports that no api_key, auth_token, or credentials are configured.
+Supply Chain full test/CLI: blocked at grpc import by Windows Application Control.
+

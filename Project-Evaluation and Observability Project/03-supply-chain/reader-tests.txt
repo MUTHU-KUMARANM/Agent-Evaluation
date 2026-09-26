@@ -1,0 +1,7 @@
+Command: python -m pytest -q tests/test_readers.py
+Result:
+.............                                                            [100%]
+13 passed in 0.12s
+
+This focused reader suite passes. It does not substitute for the full coordinator suite, which could not collect because Windows Application Control blocked the grpc extension.
+

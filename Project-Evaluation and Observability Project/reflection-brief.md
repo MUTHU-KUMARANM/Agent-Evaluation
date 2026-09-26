@@ -1,122 +1,70 @@
-# Reflection Brief — Evaluation and Observability Capstone
+# Reflection Brief: Evaluation and Observability Capstone
 
-**Name:**
-**Date:**
+**Date:** 2026-09-26
 
-> Ground every answer in your own run. When a question asks for a number, file name, or line, paste
-> it from your artifacts — a reviewer should be able to find it. Answers that are correct in the
-> abstract but cite nothing do not meet the bar. Keep it short and specific.
-
----
+> Evidence below is from deterministic recorded-response tests and offline runs. A live Anthropic
+> request was not completed because this environment has no `ANTHROPIC_API_KEY`.
 
 ## 0. Environment
 
 | Field | Value |
 |---|---|
-| OS & version | |
-| Python version | |
-| Date run | |
-| Ran any system live? (which) | |
-
----
+| OS & version | Windows 11, build 26200 (Microsoft Windows NT 10.0.26200.0) |
+| Python version | 3.12.14 |
+| Date run | 2026-09-26 |
+| Ran any system live? | No live Anthropic requests; mortgage replay used recorded responses. |
 
 ## 1. Validated, routed pipeline
 
 | Evidence | Value |
 |---|---|
-| Passing test count | |
-| Routing output file | |
-| auto_approve / human_review / spot_check counts | / / |
+| Passing test count | 45 passed, 3 skipped (`01-policy-pipeline/tests.txt`) |
+| Routing output file | Not generated: live pipeline stopped at missing Anthropic credentials (`pipeline-run.txt`). |
+| auto_approve / human_review / spot_check | Not available; no routing output was produced. |
 
-**1a. Retry boundary.** From your perturbation run (a required field removed), paste the escalation
-record. How many API calls did the system make, and why is retrying a futile case worse than
-escalating it?
+**1a. Retry boundary.** The missing-source unit test passes (`01-policy-pipeline/perturbation-run.txt`): a null `endorsements` value is classified `endorsements_absent` and the recorded client is called exactly once. Retrying cannot recover information absent from the source; it adds cost and may encourage fabrication instead of escalating.
 
-> 
+**1b. Reading the router.** Not answerable from this run: no routing JSON exists because the Anthropic client failed authentication before processing policies. No human-review record is claimed.
 
-**1b. Reading the router.** Pick one `human_review` record from your routing output. Which of the
-three signals (confidence, reviewer, integration) sent it to a human? If you had trusted the model's
-confidence alone, what would have happened?
-
-> 
-
-**1c. Where the aggregate lies.** Run the calibration snippet. Quote the one cell whose accuracy lags
-its confidence, plus the overall figure. What does slicing by `policy_type × field` catch that a
-single number hides?
-
-> 
-
----
+**1c. Where the aggregate lies.** `umbrella × exclusions` has confidence 0.93 and accuracy 0.00 (n=2, Brier 0.865); overall Brier is 0.291 (`calibration-report.txt`). Slicing reveals a poorly calibrated field/policy combination that an aggregate can conceal. The sample is small, so this is a warning, not a stable population estimate.
 
 ## 2. Schema-enforced two-pass extraction
 
 | Evidence | Value |
 |---|---|
-| Passing test count | |
-| Document run | |
-| Classified type | |
+| Passing test count | 25 passed (`02-mortgage-extraction/tests.txt`) |
+| Document run | `fixtures/documents/income_missing_bonus.txt` in `extract-run.txt`; normalization run is in `normalization-run.txt`. |
+| Classified type | Paystub/income document (inferred from extracted income fields and fixture name; the CLI JSON does not emit a document-type label). |
 
-**2a. Two guarantees.** Paste your discrepancy-run output. Tool use already forces valid JSON, yet the
-validator still catches a bad sum. Why are these two different guarantees? Name one error each cannot
-catch.
+**2a. Two guarantees.** In `discrepancy-run.txt`, calculated monthly income is 9642.17, stated is 10892.17, delta -1250.00, and `consistent` is false. Structured tool/schema validation guarantees shape and types, not arithmetic truth; the independent validator checks the sum, but cannot prove that the source document itself is authentic or correctly read.
 
-> 
+**2b. Refusing to fabricate.** `extract-run.txt` contains `bonus_monthly: null` and `bonus_ytd: null` when absent, while validation remains consistent. Nullable optional schema fields represent unknown/unstated values separately from explicit zero; inventing a bonus would misstate evidence.
 
-**2b. Refusing to fabricate.** Run on a document missing a field. Paste that field's output. Why null
-instead of an invented value? Point to the schema choice that allows it.
-
-> 
-
-**2c. Normalization.** Quote one field where the source text and extracted value differ in format
-("about 2,400 sq ft" → `2400`). Why normalize at extraction time rather than downstream?
-
-> 
-
----
+**2c. Normalization.** Fixture `appraisal_informal_sqft.txt` says “approximately 2,400 sq ft”; `normalization-run.txt` emits `gross_living_area_sqft: 2400`. Normalizing once at the extraction boundary gives downstream validation and comparison a stable numeric value.
 
 ## 3. Multi-source synthesis
 
 | Evidence | Value |
 |---|---|
-| Passing test count | |
-| Briefing file | |
-| Section the conflict landed in | |
+| Full-suite passing test count | Not established: collection is blocked by Windows Application Control denying the `grpc` extension load (`03-supply-chain/tests.txt`). |
+| Focused reader tests | 13 passed (`03-supply-chain/reader-tests.txt`). |
+| Briefing file / conflict section | Not generated; CLI/evaluation could not be run through the blocked dependency. |
 
-**3a. Annotate, don't arbitrate.** Quote one conflicting-metric pair from your briefing — both values,
-sources, dates. Give one way a reader is better served by the preserved conflict than by a single
-reconciled number.
+**3a. Annotate, don't arbitrate.** No briefing was produced, so there is no observed conflicting-metric pair to quote.
 
-> 
+**3b. Source goes dark.** A full `--simulate-timeout` run and its briefing are unavailable for the same `grpc` load block. The intended behavior is specified by the project, but is not represented as verified evidence here.
 
-**3b. Source goes dark.** Run with `--simulate-timeout`. Paste the part of the briefing showing the
-failed source. How is "unreachable" handled differently from "nothing to report," and why does the run
-still finish?
-
-> 
-
-**3c. Dates as a guardrail.** Quote two claims about the same supplier with different dates. How does
-requiring a date stop a time difference from reading as a contradiction?
-
-> 
-
----
+**3c. Dates as a guardrail.** No dated supplier claims were generated in this run; I cannot quote an observed pair.
 
 ## 4. Synthesis
 
-**4a. One principle.** Name the single moment in your runs (system + artifact) where *evaluate the
-output, don't trust the model's word* most clearly caught something a trusting design would have
-shipped.
+**4a. One principle.** The mortgage replay discrepancy is the clearest observed check: syntactically structured values were independently summed and flagged (`discrepancy-run.txt`).
 
-> 
+**4b. Confidence is not correctness.** Mortgage validation mattered most in the captured runs because it detected a 1250.00 inconsistency despite a well-formed extraction. The policy calibration slice also shows confidence 0.93 alongside accuracy 0.00 on two examples, but that sample is very small.
 
-**4b. Confidence ≠ correctness.** Pick the system where this mattered most, and explain why using
-something you observed.
+**4c. Apply it.** For supplier invoice intake, I would start with schema-constrained extraction plus deterministic reconciliation of invoice totals, quantities, and purchase-order values, then route mismatches to a person. I would instrument schema failures, per-field discrepancy rates, null rates, reviewer overrides, latency, and source-level timeout rates.
 
-> 
+## Run limitations
 
-**4c. Apply it.** Describe a real workflow where an LLM pulls structured results from messy input.
-Which pattern — validated retry with escalation, independent review with deterministic routing, or
-provenance-preserving conflict annotation — would you reach for first, and what would you instrument
-to know when it broke?
+The live Anthropic pipeline did not run: no API credential was configured, and no key was supplied. The Supply Chain full test collection/CLI did not run because Windows Application Control denied loading `grpc`; the focused reader tests do pass. The missing live routing, synthesis, and timeout evidence means this submission is not yet fully verified against every rubric item.
 
-> 

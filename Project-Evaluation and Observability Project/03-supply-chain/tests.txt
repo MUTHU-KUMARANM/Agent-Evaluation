@@ -1,0 +1,91 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- C:\Users\Muthukumaran\Downloads\1790156121\Agent-Evaluation-main\.venvs\supply\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Muthukumaran\Downloads\1790156121\Agent-Evaluation-main\Investigate Supply Chain Risk with Multi-Source Synthesis\03-resilient-coordinator\solution
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1
+collecting ... collected 13 items / 3 errors
+
+=================================== ERRORS ====================================
+_________________ ERROR collecting tests/test_coordinator.py __________________
+ImportError while importing test module 'C:\Users\Muthukumaran\Downloads\1790156121\Agent-Evaluation-main\Investigate Supply Chain Risk with Multi-Source Synthesis\03-resilient-coordinator\solution\tests\test_coordinator.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\..\..\..\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_coordinator.py:6: in <module>
+    from supply_chain_risk.coordinator import investigate
+supply_chain_risk\coordinator.py:18: in <module>
+    from .memory import SharedMemory
+supply_chain_risk\memory.py:18: in <module>
+    import chromadb
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\__init__.py:11: in <module>
+    from chromadb.auth.token_authn import TokenTransportHeader
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\auth\token_authn\__init__.py:24: in <module>
+    from chromadb.telemetry.opentelemetry import (
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\telemetry\opentelemetry\__init__.py:13: in <module>
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+..\..\..\.venvs\supply\Lib\site-packages\opentelemetry\exporter\otlp\proto\grpc\trace_exporter\__init__.py:11: in <module>
+    from grpc import ChannelCredentials, Compression, StatusCode
+..\..\..\.venvs\supply\Lib\site-packages\grpc\__init__.py:24: in <module>
+    from grpc import _compression
+..\..\..\.venvs\supply\Lib\site-packages\grpc\_compression.py:20: in <module>
+    from grpc._cython import cygrpc
+E   ImportError: DLL load failed while importing cygrpc: An Application Control policy has blocked this file.
+____________________ ERROR collecting tests/test_memory.py ____________________
+ImportError while importing test module 'C:\Users\Muthukumaran\Downloads\1790156121\Agent-Evaluation-main\Investigate Supply Chain Risk with Multi-Source Synthesis\03-resilient-coordinator\solution\tests\test_memory.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\..\..\..\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_memory.py:6: in <module>
+    from supply_chain_risk.memory import SharedMemory
+supply_chain_risk\memory.py:18: in <module>
+    import chromadb
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\__init__.py:11: in <module>
+    from chromadb.auth.token_authn import TokenTransportHeader
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\auth\token_authn\__init__.py:24: in <module>
+    from chromadb.telemetry.opentelemetry import (
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\telemetry\opentelemetry\__init__.py:13: in <module>
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+..\..\..\.venvs\supply\Lib\site-packages\opentelemetry\exporter\otlp\proto\grpc\trace_exporter\__init__.py:11: in <module>
+    from grpc import ChannelCredentials, Compression, StatusCode
+..\..\..\.venvs\supply\Lib\site-packages\grpc\__init__.py:24: in <module>
+    from grpc import _compression
+..\..\..\.venvs\supply\Lib\site-packages\grpc\_compression.py:20: in <module>
+    from grpc._cython import cygrpc
+E   ImportError: DLL load failed while importing cygrpc: An Application Control policy has blocked this file.
+__________________ ERROR collecting tests/test_synthesis.py ___________________
+ImportError while importing test module 'C:\Users\Muthukumaran\Downloads\1790156121\Agent-Evaluation-main\Investigate Supply Chain Risk with Multi-Source Synthesis\03-resilient-coordinator\solution\tests\test_synthesis.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+..\..\..\..\..\..\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_synthesis.py:6: in <module>
+    from supply_chain_risk.memory import SharedMemory
+supply_chain_risk\memory.py:18: in <module>
+    import chromadb
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\__init__.py:11: in <module>
+    from chromadb.auth.token_authn import TokenTransportHeader
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\auth\token_authn\__init__.py:24: in <module>
+    from chromadb.telemetry.opentelemetry import (
+..\..\..\.venvs\supply\Lib\site-packages\chromadb\telemetry\opentelemetry\__init__.py:13: in <module>
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+..\..\..\.venvs\supply\Lib\site-packages\opentelemetry\exporter\otlp\proto\grpc\trace_exporter\__init__.py:11: in <module>
+    from grpc import ChannelCredentials, Compression, StatusCode
+..\..\..\.venvs\supply\Lib\site-packages\grpc\__init__.py:24: in <module>
+    from grpc import _compression
+..\..\..\.venvs\supply\Lib\site-packages\grpc\_compression.py:20: in <module>
+    from grpc._cython import cygrpc
+E   ImportError: DLL load failed while importing cygrpc: An Application Control policy has blocked this file.
+=========================== short test summary info ===========================
+ERROR tests/test_coordinator.py
+ERROR tests/test_memory.py
+ERROR tests/test_synthesis.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 3 errors during collection !!!!!!!!!!!!!!!!!!!
+============================= 3 errors in 10.63s ==============================
+
