@@ -1,4 +1,4 @@
-2026-10-03 18:19:04,446 INFO HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+2026-10-03 19:32:32,339 INFO HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
 Traceback (most recent call last):
   File "/opt/hostedtoolcache/Python/3.12.14/x64/bin/policy-extractor", line 6, in <module>
     sys.exit(main())
@@ -26,6 +26,6 @@ Traceback (most recent call last):
                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/_base_client.py", line 1208, in request
     raise self._make_status_error_from_response(response) from None
-anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmK13sHJC4aERCVXNYa'}
+anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffruvmDBCi6r8vGpHg7V'}
 
 EXIT_CODE=1

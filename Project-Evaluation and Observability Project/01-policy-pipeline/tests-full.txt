@@ -95,7 +95,7 @@ policy_extractor/client.py:27: in create
                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <anthropic.Anthropic object at 0x7f2d6cf90e60>
+self = <anthropic.Anthropic object at 0x7fe53261b650>
 cast_to = <class 'anthropic.types.message.Message'>
 options = FinalRequestOptions(method='post', url='/v1/messages', params={}, headers={'anthropic-user-profile-id': <anthropic.Omi...e', 'premium_amount', 'deductible', 'coverage_limit', 'endorsements', 'exclusions', 'confidence']}}]}, extra_json=None)
 stream = False
@@ -186,7 +186,7 @@ stream_cls = anthropic.Stream[typing.Annotated[typing.Union[anthropic.types.raw_
                 response.read()
     
 >           raise self._make_status_error_from_response(response) from None
-E           anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmJJVpbeWdQYTbfucfq'}
+E           anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffruDeSBPc9tbPL23GtE'}
 
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/_base_client.py:1208: AuthenticationError
 __________________ test_live_dry_run_sample_against_real_api ___________________
@@ -231,7 +231,7 @@ policy_extractor/client.py:27: in create
                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <anthropic.Anthropic object at 0x7f2d6d027a70>
+self = <anthropic.Anthropic object at 0x7fe532694ad0>
 cast_to = <class 'anthropic.types.message.Message'>
 options = FinalRequestOptions(method='post', url='/v1/messages', params={}, headers={'anthropic-user-profile-id': <anthropic.Omi...e', 'premium_amount', 'deductible', 'coverage_limit', 'endorsements', 'exclusions', 'confidence']}}]}, extra_json=None)
 stream = False
@@ -322,7 +322,7 @@ stream_cls = anthropic.Stream[typing.Annotated[typing.Union[anthropic.types.raw_
                 response.read()
     
 >           raise self._make_status_error_from_response(response) from None
-E           anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmJL9oUWA8n343ZJ3Dt'}
+E           anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffruF3mk2eNEhyE9bLkZ'}
 
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/_base_client.py:1208: AuthenticationError
 ________________ test_live_reviewer_returns_per_field_judgement ________________
@@ -384,7 +384,7 @@ policy_extractor/client.py:27: in create
                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
 
-self = <anthropic.Anthropic object at 0x7f2d6cead610>
+self = <anthropic.Anthropic object at 0x7fe5326998e0>
 cast_to = <class 'anthropic.types.message.Message'>
 options = FinalRequestOptions(method='post', url='/v1/messages', params={}, headers={'anthropic-user-profile-id': <anthropic.Omi... 1.0}}, 'required': ['field', 'agreement', 'review_confidence']}}}, 'required': ['field_reviews']}}]}, extra_json=None)
 stream = False
@@ -475,13 +475,13 @@ stream_cls = anthropic.Stream[typing.Annotated[typing.Union[anthropic.types.raw_
                 response.read()
     
 >           raise self._make_status_error_from_response(response) from None
-E           anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmJMBopGgAXV8RdtwFn'}
+E           anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffruFs8y1aedTGbu8Tt7'}
 
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/_base_client.py:1208: AuthenticationError
 =========================== short test summary info ============================
-FAILED tests/test_us01_retry.py::test_live_extracts_well_formed_policy - anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmJJVpbeWdQYTbfucfq'}
-FAILED tests/test_us02_batch.py::test_live_dry_run_sample_against_real_api - anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmJL9oUWA8n343ZJ3Dt'}
-FAILED tests/test_us03_review.py::test_live_reviewer_returns_per_field_judgement - anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmJMBopGgAXV8RdtwFn'}
-========================= 3 failed, 45 passed in 1.06s =========================
+FAILED tests/test_us01_retry.py::test_live_extracts_well_formed_policy - anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffruDeSBPc9tbPL23GtE'}
+FAILED tests/test_us02_batch.py::test_live_dry_run_sample_against_real_api - anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffruF3mk2eNEhyE9bLkZ'}
+FAILED tests/test_us03_review.py::test_live_reviewer_returns_per_field_judgement - anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffruFs8y1aedTGbu8Tt7'}
+========================= 3 failed, 45 passed in 0.88s =========================
 
 EXIT_CODE=1

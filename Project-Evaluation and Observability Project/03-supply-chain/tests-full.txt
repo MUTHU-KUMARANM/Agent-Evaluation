@@ -42,6 +42,6 @@ tests/test_synthesis.py::test_three_sections_with_attribution PASSED     [ 94%]
 tests/test_synthesis.py::test_empty_section_renders_none PASSED          [ 97%]
 tests/test_synthesis.py::test_coverage_badges PASSED                     [100%]
 
-============================= 34 passed in 15.31s ==============================
+============================= 34 passed in 12.04s ==============================
 
 EXIT_CODE=0

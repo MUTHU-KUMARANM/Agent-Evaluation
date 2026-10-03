@@ -33,6 +33,6 @@ tests/test_us04_validator.py::test_ac_04_04_real_paystub_with_sum_mismatch_is_fl
 tests/test_us04_validator.py::test_clean_extraction_yields_consistent_true PASSED [ 96%]
 tests/test_us04_validator.py::test_validation_report_round_trips_through_json PASSED [100%]
 
-============================== 25 passed in 1.16s ==============================
+============================== 25 passed in 1.18s ==============================
 
 EXIT_CODE=0
