@@ -1,6 +1,4 @@
-=== mypy policy_extractor  ===
 Success: no issues found in 11 source files
-=== ruff check . ===
 All checks passed!
-mypy_exit=0 ruff_exit=0
 
+EXIT_CODE=0
