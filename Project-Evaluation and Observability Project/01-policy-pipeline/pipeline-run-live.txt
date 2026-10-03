@@ -1,1 +1,31 @@
-Skipped: ANTHROPIC_API_KEY secret is not configured.
+2026-10-03 18:19:04,446 INFO HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 401 Unauthorized"
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/bin/policy-extractor", line 6, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/runner/work/Agent-Evaluation/Agent-Evaluation/Build a Validated, Routed Insurance Policy Extraction Pipeline/04-hitl-routing/solution/policy_extractor/__main__.py", line 82, in main
+    return _cmd_pipeline(args)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/Agent-Evaluation/Agent-Evaluation/Build a Validated, Routed Insurance Policy Extraction Pipeline/04-hitl-routing/solution/policy_extractor/__main__.py", line 144, in _cmd_pipeline
+    outcome = extract_with_retry(
+              ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/Agent-Evaluation/Agent-Evaluation/Build a Validated, Routed Insurance Policy Extraction Pipeline/04-hitl-routing/solution/policy_extractor/retry.py", line 48, in extract_with_retry
+    response = client.create(
+               ^^^^^^^^^^^^^^
+  File "/home/runner/work/Agent-Evaluation/Agent-Evaluation/Build a Validated, Routed Insurance Policy Extraction Pipeline/04-hitl-routing/solution/policy_extractor/client.py", line 27, in create
+    result: Message = self._client.messages.create(**kwargs)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/_utils/_utils.py", line 294, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/resources/messages/messages.py", line 1029, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/_base_client.py", line 1543, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/anthropic/_base_client.py", line 1208, in request
+    raise self._make_status_error_from_response(response) from None
+anthropic.AuthenticationError: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CffmK13sHJC4aERCVXNYa'}
+
+EXIT_CODE=1
