@@ -1,0 +1,92 @@
+name: Submission validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/submission-validation.yml"
+      - "Build a Validated, Routed Insurance Policy Extraction Pipeline/04-hitl-routing/solution/**"
+      - "Build a Resilient Mortgage Document Extraction System/04-validate-mathematical-consistency/solution/**"
+      - "Investigate Supply Chain Risk with Multi-Source Synthesis/03-resilient-coordinator/solution/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: submission-validation-main
+  cancel-in-progress: false
+
+jobs:
+  validate-and-capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run suites and capture reproducible evidence
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +e
+          ROOT="$GITHUB_WORKSPACE"
+          EVIDENCE="$ROOT/Project-Evaluation and Observability Project"
+          POLICY="$ROOT/Build a Validated, Routed Insurance Policy Extraction Pipeline/04-hitl-routing/solution"
+          MORTGAGE="$ROOT/Build a Resilient Mortgage Document Extraction System/04-validate-mathematical-consistency/solution"
+          SUPPLY="$ROOT/Investigate Supply Chain Risk with Multi-Source Synthesis/03-resilient-coordinator/solution"
+          failures=0
+
+          mkdir -p "$EVIDENCE/01-policy-pipeline" "$EVIDENCE/02-mortgage-extraction" "$EVIDENCE/03-supply-chain"
+
+          run_logged() {
+            local output="$1"
+            shift
+            "$@" >"$output" 2>&1
+            local status=$?
+            cat "$output"
+            printf '\nEXIT_CODE=%s\n' "$status" >>"$output"
+            if [ "$status" -ne 0 ]; then
+              failures=$((failures + 1))
+            fi
+          }
+
+          run_logged "$EVIDENCE/01-policy-pipeline/install.txt" python -m pip install -e "$POLICY[dev]"
+          run_logged "$EVIDENCE/01-policy-pipeline/tests-full.txt" bash -c "cd \"$POLICY\" && python -m pytest -v tests/"
+          run_logged "$EVIDENCE/01-policy-pipeline/static-checks.txt" bash -c "cd \"$POLICY\" && mypy policy_extractor && ruff check ."
+          run_logged "$EVIDENCE/01-policy-pipeline/calibration-report.txt" bash -c "cd \"$POLICY\" && python \"$EVIDENCE/calibration_report.py\""
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            printf 'Skipped: ANTHROPIC_API_KEY secret is not configured.\n' >"$EVIDENCE/01-policy-pipeline/pipeline-run-live.txt"
+            failures=$((failures + 1))
+          else
+            run_logged "$EVIDENCE/01-policy-pipeline/pipeline-run-live.txt" bash -c "cd \"$POLICY\" && policy-extractor pipeline data/policies/ --routing-out \"$EVIDENCE/01-policy-pipeline/routing_decisions.json\" --seed 7"
+          fi
+
+          run_logged "$EVIDENCE/02-mortgage-extraction/install.txt" python -m pip install -e "$MORTGAGE[dev]"
+          run_logged "$EVIDENCE/02-mortgage-extraction/tests-full.txt" bash -c "cd \"$MORTGAGE\" && python -m pytest -v tests/"
+          run_logged "$EVIDENCE/02-mortgage-extraction/static-checks.txt" bash -c "cd \"$MORTGAGE\" && mypy mortgage_extractor && ruff check ."
+          run_logged "$EVIDENCE/02-mortgage-extraction/extract-run.txt" bash -c "cd \"$MORTGAGE\" && python -m mortgage_extractor fixtures/documents/income_missing_bonus.txt --mode replay"
+          run_logged "$EVIDENCE/02-mortgage-extraction/discrepancy-run.txt" bash -c "cd \"$MORTGAGE\" && python -m mortgage_extractor fixtures/documents/income_sum_mismatch.txt --mode replay"
+
+          run_logged "$EVIDENCE/03-supply-chain/install.txt" python -m pip install -e "$SUPPLY[dev]"
+          run_logged "$EVIDENCE/03-supply-chain/tests-full.txt" bash -c "cd \"$SUPPLY\" && python -m pytest -v tests/"
+          run_logged "$EVIDENCE/03-supply-chain/static-checks.txt" bash -c "cd \"$SUPPLY\" && mypy supply_chain_risk --python-version 3.12 && ruff check ."
+          run_logged "$EVIDENCE/03-supply-chain/investigation-run.txt" bash -c "cd \"$SUPPLY\" && supply-chain-investigate meridian --offline"
+          cp "$EVIDENCE/03-supply-chain/investigation-run.txt" "$EVIDENCE/03-supply-chain/briefing.txt"
+          run_logged "$EVIDENCE/03-supply-chain/timeout-run.txt" bash -c "cd \"$SUPPLY\" && supply-chain-investigate meridian --offline --simulate-timeout"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$EVIDENCE/01-policy-pipeline" "$EVIDENCE/02-mortgage-extraction" "$EVIDENCE/03-supply-chain"
+          if ! git diff --cached --quiet; then
+            git commit -m "Capture Linux submission validation evidence"
+            git pull --rebase origin main
+            git push origin HEAD:main
+            if [ "$?" -ne 0 ]; then failures=$((failures + 1)); fi
+          fi
+          exit "$failures"
