@@ -1,70 +1,68 @@
 # Reflection Brief: Evaluation and Observability Capstone
 
-**Date:** 2026-09-26
+**Date:** 2026-10-03
 
-> Evidence below is from deterministic recorded-response tests and offline runs. A live Anthropic
-> request was not completed because this environment has no `ANTHROPIC_API_KEY`.
+> The Linux evidence in this brief is from GitHub Actions run 37141918003. It uses recorded responses for offline runs; no live Anthropic request completed because the workflow received an empty API-key environment variable.
 
 ## 0. Environment
 
 | Field | Value |
 |---|---|
-| OS & version | Windows 11, build 26200 (Microsoft Windows NT 10.0.26200.0) |
-| Python version | 3.12.14 |
-| Date run | 2026-09-26 |
-| Ran any system live? | No live Anthropic requests; mortgage replay used recorded responses. |
+| Local environment | Windows 11, build 26200; Python 3.12.14 (earlier evidence in `environment.txt`). |
+| Reproduction environment | GitHub Actions, Ubuntu 24.04.5 LTS; Python 3.12.14. |
+| Date run | 2026-10-03 |
+| Live model call | No. The workflow step had no `ANTHROPIC_API_KEY` value; `pipeline-run-live.txt` records that it was skipped. |
 
 ## 1. Validated, routed pipeline
 
 | Evidence | Value |
 |---|---|
-| Passing test count | 45 passed, 3 skipped (`01-policy-pipeline/tests.txt`) |
-| Routing output file | Not generated: live pipeline stopped at missing Anthropic credentials (`pipeline-run.txt`). |
-| auto_approve / human_review / spot_check | Not available; no routing output was produced. |
+| Passing tests | 45 passed, 3 skipped (`01-policy-pipeline/tests-full.txt`). |
+| End-to-end run / routing JSON | Not produced: the workflow did not receive the configured secret (`pipeline-run-live.txt`). |
+| auto_approve / human_review / spot_check counts | Not available; there is no routing output to count. |
 
-**1a. Retry boundary.** The missing-source unit test passes (`01-policy-pipeline/perturbation-run.txt`): a null `endorsements` value is classified `endorsements_absent` and the recorded client is called exactly once. Retrying cannot recover information absent from the source; it adds cost and may encourage fabrication instead of escalating.
+**1a. Retry boundary.** The controlled recorded-response test in `perturbation-run.txt` passes: null `endorsements` is classified as `endorsements_absent` and the test asserts exactly one client call. Retrying cannot recover information absent from the source; it wastes calls and risks fabrication instead of escalation.
 
-**1b. Reading the router.** Not answerable from this run: no routing JSON exists because the Anthropic client failed authentication before processing policies. No human-review record is claimed.
+**1b. Reading the router.** Still unverified. Without the live pipeline output and `routing_decisions.json`, I cannot identify a real human-review record or its driving signal.
 
-**1c. Where the aggregate lies.** `umbrella × exclusions` has confidence 0.93 and accuracy 0.00 (n=2, Brier 0.865); overall Brier is 0.291 (`calibration-report.txt`). Slicing reveals a poorly calibrated field/policy combination that an aggregate can conceal. The sample is small, so this is a warning, not a stable population estimate.
+**1c. Where the aggregate lies.** In `calibration-report.txt`, `umbrella × exclusions` has confidence 0.93, accuracy 0.00, n=2, and Brier 0.865, while overall Brier is 0.291. The slice exposes a weak area concealed by the aggregate; the two-example sample is too small for a stable population estimate.
 
 ## 2. Schema-enforced two-pass extraction
 
 | Evidence | Value |
 |---|---|
-| Passing test count | 25 passed (`02-mortgage-extraction/tests.txt`) |
-| Document run | `fixtures/documents/income_missing_bonus.txt` in `extract-run.txt`; normalization run is in `normalization-run.txt`. |
-| Classified type | Paystub/income document (inferred from extracted income fields and fixture name; the CLI JSON does not emit a document-type label). |
+| Passing tests | 25 passed (`02-mortgage-extraction/tests-full.txt`). |
+| Document run | `income_missing_bonus.txt`; replay output is `extract-run.txt`. |
+| Classified type | Income/paystub extraction, inferred from the returned income fields; the CLI output itself does not emit a type label. |
 
-**2a. Two guarantees.** In `discrepancy-run.txt`, calculated monthly income is 9642.17, stated is 10892.17, delta -1250.00, and `consistent` is false. Structured tool/schema validation guarantees shape and types, not arithmetic truth; the independent validator checks the sum, but cannot prove that the source document itself is authentic or correctly read.
+**2a. Two guarantees.** `discrepancy-run.txt` shows calculated monthly income 9642.17, stated 10892.17, delta -1250.00, and `consistent: false`. Schema/tool enforcement checks structure and types; the independent validator checks arithmetic. Neither proves the source document is authentic or that every value was read correctly.
 
-**2b. Refusing to fabricate.** `extract-run.txt` contains `bonus_monthly: null` and `bonus_ytd: null` when absent, while validation remains consistent. Nullable optional schema fields represent unknown/unstated values separately from explicit zero; inventing a bonus would misstate evidence.
+**2b. Refusing to fabricate.** In `extract-run.txt`, absent `bonus_monthly` and `bonus_ytd` are null. Nullable optional fields preserve “not stated” as distinct from explicit zero.
 
-**2c. Normalization.** Fixture `appraisal_informal_sqft.txt` says “approximately 2,400 sq ft”; `normalization-run.txt` emits `gross_living_area_sqft: 2400`. Normalizing once at the extraction boundary gives downstream validation and comparison a stable numeric value.
+**2c. Normalization.** The appraisal fixture says “approximately 2,400 sq ft”; `normalization-run.txt` returns `gross_living_area_sqft: 2400`. Normalizing at extraction gives downstream comparisons a stable numeric value.
 
 ## 3. Multi-source synthesis
 
 | Evidence | Value |
 |---|---|
-| Full-suite passing test count | Not established: collection is blocked by Windows Application Control denying the `grpc` extension load (`03-supply-chain/tests.txt`). |
-| Focused reader tests | 13 passed (`03-supply-chain/reader-tests.txt`). |
-| Briefing file / conflict section | Not generated; CLI/evaluation could not be run through the blocked dependency. |
+| Passing tests | 34 passed (`03-supply-chain/tests-full.txt`). |
+| Investigation / briefing | `investigation-run.txt` and `briefing.txt`; sections include Well-Established, Contested, and Incomplete. |
+| Timeout run | `timeout-run.txt`; command exited 0. |
 
-**3a. Annotate, don't arbitrate.** No briefing was produced, so there is no observed conflicting-metric pair to quote.
+**3a. Annotate, don't arbitrate.** In the Contested section of `briefing.txt`, on-time delivery is 95.0% from `supplier_audit` (2026-04-10) and 78.0% from `logistics` (2026-04-05). Retaining both with source and date lets a reviewer see a possible reporting-window difference instead of treating one value as ground truth.
 
-**3b. Source goes dark.** A full `--simulate-timeout` run and its briefing are unavailable for the same `grpc` load block. The intended behavior is specified by the project, but is not represented as verified evidence here.
+**3b. Source goes dark.** `timeout-run.txt` reports “Sources unavailable: logistics unavailable (timeout)” and the Incomplete section marks `late_shipment_count` as “missing source: timeout reading logistics.” The run exits 0 and still includes available-source results. A timeout is an explicit coverage gap, not evidence that there was nothing to report.
 
-**3c. Dates as a guardrail.** No dated supplier claims were generated in this run; I cannot quote an observed pair.
+**3c. Dates as a guardrail.** The same on-time-delivery metric is 95.0% from supplier audit (2026-04-10) and 78.0% from logistics (2026-04-05), both in `briefing.txt`. Dates expose that these are differently dated observations, so readers can investigate differing windows rather than read them as a timeless contradiction.
 
 ## 4. Synthesis
 
-**4a. One principle.** The mortgage replay discrepancy is the clearest observed check: syntactically structured values were independently summed and flagged (`discrepancy-run.txt`).
+**4a. One principle.** Keep evidence distinctions visible. Mortgage arithmetic validation catches a mismatch after schema extraction; the policy unit tests separate missing-source escalation from retryable errors; and Supply Chain preserves source/date attribution while marking timed-out coverage Incomplete.
 
-**4b. Confidence is not correctness.** Mortgage validation mattered most in the captured runs because it detected a 1250.00 inconsistency despite a well-formed extraction. The policy calibration slice also shows confidence 0.93 alongside accuracy 0.00 on two examples, but that sample is very small.
+**4b. Confidence is not correctness.** The mortgage discrepancy is the clearest observed catch: well-formed extracted fields still failed the independent sum check. Supply Chain reinforces the same lesson in a different way: two differently dated delivery-rate values remain contested rather than being collapsed into a falsely precise number.
 
-**4c. Apply it.** For supplier invoice intake, I would start with schema-constrained extraction plus deterministic reconciliation of invoice totals, quantities, and purchase-order values, then route mismatches to a person. I would instrument schema failures, per-field discrepancy rates, null rates, reviewer overrides, latency, and source-level timeout rates.
+**4c. Apply it.** For supplier-invoice processing, I would extract typed fields, deterministically reconcile totals to line items and purchase orders, independently route mismatches for review, and preserve source/date metadata while marking missing sources explicitly. I would monitor schema failures, discrepancy and null rates by field, reviewer overrides, source timeouts, and per-source freshness.
 
-## Run limitations
+## Remaining blocker
 
-The live Anthropic pipeline did not run: no API credential was configured, and no key was supplied. The Supply Chain full test collection/CLI did not run because Windows Application Control denied loading `grpc`; the focused reader tests do pass. The missing live routing, synthesis, and timeout evidence means this submission is not yet fully verified against every rubric item.
-
+The Linux suites and Supply Chain investigation/timeout now run successfully. The policy live pipeline and routing decision evidence are still missing: GitHub Actions received an empty `ANTHROPIC_API_KEY` value during run 37141918003, despite a key being reported as configured. Confirm the repository secret is named exactly `ANTHROPIC_API_KEY` and is available to this workflow, then rerun it. No key value is included in logs or this repository.
