@@ -1,3 +1,5 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 4591.05it/s]
 # Supply Chain Risk Briefing — Meridian
 
 ## Well-Established
@@ -54,3 +56,6 @@
 ### production_capacity_utilization  _[missing source: no source reported this metric]_  ⚠️ ESCALATE
 - escalation: high-impact metric has no usable source
 - missing source: no source reported this metric
+
+
+EXIT_CODE=0

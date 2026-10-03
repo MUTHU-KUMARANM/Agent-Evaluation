@@ -56,6 +56,6 @@ tests/test_us04_routing.py::test_ac_04_04_calibration_report_is_sliced_by_policy
 tests/test_us04_routing.py::test_ac_04_04_calibration_report_handles_empty_input PASSED [ 97%]
 tests/test_us04_routing.py::test_ac_04_05_routing_decisions_written_to_json_file PASSED [100%]
 
-======================== 45 passed, 3 skipped in 0.11s =========================
+======================== 45 passed, 3 skipped in 0.12s =========================
 
 EXIT_CODE=0
