@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-03
 
-> The Linux evidence in this brief is from GitHub Actions run 37141918003. It uses recorded responses for offline runs; no live Anthropic request completed because the workflow received an empty API-key environment variable.
+> The Linux evidence is from GitHub Actions run 37141918003, latest attempt 3. Offline runs use recorded responses. The live Anthropic request was rejected with HTTP 401 (`invalid x-api-key`); no extraction completed.
 
 ## 0. Environment
 
@@ -11,14 +11,14 @@
 | Local environment | Windows 11, build 26200; Python 3.12.14 (earlier evidence in `environment.txt`). |
 | Reproduction environment | GitHub Actions, Ubuntu 24.04.5 LTS; Python 3.12.14. |
 | Date run | 2026-10-03 |
-| Live model call | No. The workflow step had no `ANTHROPIC_API_KEY` value; `pipeline-run-live.txt` records that it was skipped. |
+| Live model call | Attempted, but Anthropic rejected the configured key with HTTP 401 (`invalid x-api-key`); see `pipeline-run-live.txt`. |
 
 ## 1. Validated, routed pipeline
 
 | Evidence | Value |
 |---|---|
-| Passing tests | 45 passed, 3 skipped (`01-policy-pipeline/tests-full.txt`). |
-| End-to-end run / routing JSON | Not produced: the workflow did not receive the configured secret (`pipeline-run-live.txt`). |
+| Tests | 45 passed, 3 failed (`01-policy-pipeline/tests-full.txt`); the 3 live API tests failed authentication with HTTP 401. |
+| End-to-end run / routing JSON | Not produced: the live call failed authentication; see `pipeline-run-live.txt`. |
 | auto_approve / human_review / spot_check counts | Not available; there is no routing output to count. |
 
 **1a. Retry boundary.** The controlled recorded-response test in `perturbation-run.txt` passes: null `endorsements` is classified as `endorsements_absent` and the test asserts exactly one client call. Retrying cannot recover information absent from the source; it wastes calls and risks fabrication instead of escalation.
@@ -65,4 +65,4 @@
 
 ## Remaining blocker
 
-The Linux suites and Supply Chain investigation/timeout now run successfully. The policy live pipeline and routing decision evidence are still missing: GitHub Actions received an empty `ANTHROPIC_API_KEY` value during run 37141918003, despite a key being reported as configured. Confirm the repository secret is named exactly `ANTHROPIC_API_KEY` and is available to this workflow, then rerun it. No key value is included in logs or this repository.
+The Linux suites and Supply Chain investigation/timeout now run successfully. The policy live pipeline and routing evidence remain incomplete: the workflow received a masked key, but Anthropic rejected it with HTTP 401 (`invalid x-api-key`). Replace the repository secret with a valid Anthropic API key and rerun the workflow. No key value is included in logs or this repository.

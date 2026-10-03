@@ -6,7 +6,7 @@
 - **Command:** `python -m pytest -q tests/test_us01_retry.py -k missing_source_halts_immediately` (from the final policy solution directory).
 - **Prediction:** The system treats absent source evidence as futile to retry and escalates after one model-client call.
 - **Observed:** The test passed; it asserts `RetryFutileEscalation`, pattern `endorsements_absent`, and one client call. See `01-policy-pipeline/perturbation-run.txt`.
-- **Compared with ordinary input:** A complete recorded response can proceed through extraction; the null-required-field response instead escalates. This is a deterministic recorded test, not a live API run or modified source policy. The end-to-end routing run remains blocked because the workflow received no API key.
+- **Compared with ordinary input:** A complete recorded response can proceed through extraction; the null-required-field response instead escalates. This is a deterministic recorded test, not a live API run or modified source policy. The end-to-end routing run remains blocked because Anthropic rejected the configured key with HTTP 401 (`invalid x-api-key`).
 
 ## System 2: schema-enforced two-pass extraction
 
